@@ -5,6 +5,10 @@ name = "pypi"
 
 [packages]
 numpy = "*"
+pydicom = "*"
+scikit-image = "*"
+dicom = "*"
+matplotlib = "*"
 
 [dev-packages]
 
