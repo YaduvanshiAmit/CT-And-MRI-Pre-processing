@@ -7,11 +7,13 @@
 # -------------------------------------------------------------------------------
 from __future__ import print_function
 import SimpleITK as sitk
-from os import listdir
+import os
 from scipy.interpolate import interp1d
 import time
-from utils import *
-from dicom.Dicom_Tools import *
+import numpy as np
+
+from dicom.dicom_tools import DicomRead
+
 def tic():
     global startTime_for_tictoc
     startTime_for_tictoc = time.time()
@@ -151,11 +153,8 @@ def train(image_list,dir1,dir2,pLow=1, pHigh=99, sMin=1, sMax=99, numPoints=10,
 
         for F2, image in enumerate(image_list):
                 if True:#image!='7148914_20180608':
-                        try:
-                            print('Learning the landmarks from: ', image + '.nii')
-                            img = sitk.ReadImage(join(dir1, image+'.nii'))
-                        except Exception:
-                            img=DicomRead(join(dir1, image))
+                        img = DicomRead(os.path.join(dir1,image))
+                        img = sitk.GetImageFromArray(img)  #change
                         landmarks = getLandmarks(img, showLandmarks=showLandmarks,nbins=nbins,pHigh=pHigh,pLow=pLow,numPoints=numPoints)
                         # Check the obtained landmarks ...
                         if landmarksSanityCheck(landmarks):
@@ -221,9 +220,7 @@ def transform(image,meanLandmarks,mask=None):
     mappedData = mappedData.reshape(data.shape)
 
     output = sitk.GetImageFromArray(shif_by_negative_value(mappedData.astype(int)))
-    output.SetSpacing(image.GetSpacing()) 
-    output.SetOrigin(image.GetOrigin())
-    output.SetDirection(image.GetDirection())
+    
 
     return output
 

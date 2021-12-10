@@ -34,7 +34,7 @@ def arg_def():
             description='Extraxting the data from dicom_folder and save the results at target folder'
         )
     parser.add_argument('--dicom_folder',type=str,
-            default='Data\\dicom_folder\\mri\\98890234\\20030505\\MR\\MR1' , help='input path'
+            default='Data\\dicom_folder\\pra' , help='input path'
         )
     parser.add_argument('--target_folder',type=str,
             default='Data\\target_folder' , help='input path'
@@ -141,7 +141,7 @@ def main():
     elif args.image_type=='MRI':
         for i, patient in enumerate(Patient_List):
                 Input_path = os.path.join(args.dicom_folder, patient)
-                print(Input_path)
+                
                 if os.path.isfile(Input_path):
                     data = remout(Input_path
                     )
@@ -158,6 +158,22 @@ def main():
         f = np.load(Model_Path, allow_pickle=True)
         Model = f['trainedModel'].all()
         meanLandmarks = Model['meanLandmarks']
+        
+        for i, patient in enumerate(Patient_List):
+            Input_path = os.path.join(args.target_folder, 'Bias_field_corrected',patient)
+            print('Standardizing ...',(Input_path))
+            image_b = DicomRead(Input_path)
+            image_B = sitk.GetImageFromArray(image_b)
+            image_B_S = transform(image_B,meanLandmarks)
+            image_a = sitk.GetArrayFromImage(image_B)
+            image_d = sitk.GetArrayFromImage(image_B_S)
+        
+            print(image_a.max())
+            print(image_d.max())
+            plt.hist(image_a.flatten(),density=True,bins=64,range=(-10,110))
+            plt.show()
+            plt.hist(image_d.flatten(),density=True,bins=64,range=(-10,110))
+            plt.show()
 
     return 0 
     
