@@ -34,12 +34,12 @@ def arg_def():
             description='Extraxting the data from dicom_folder and save the results at target folder'
         )
     parser.add_argument('--dicom_folder',type=str,
-            default='Data\\dicom_folder\\mri\\98890234\\20030505\\MR\\MR2' , help='input path'
+            default='Data\\dicom_folder' , help='input path'
         )
     parser.add_argument('--target_folder',type=str,
             default='Data\\target_folder' , help='input path'
         )
-    parser.add_argument('--image_type', type=str, default='MRI',
+    parser.add_argument('--image_type', type=str, default='CT',
                             help='Image type received at the intput, options are \'MRI\', \'CT\''
         ) 
     parser.add_argument('--output_image_extension', type=str, default='png',
