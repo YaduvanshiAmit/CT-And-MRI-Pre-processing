@@ -32,16 +32,14 @@ def NiftiWrite(image,output_dir,output_name=None,OutputPixelType='Uint16'):
         os.makedirs(output_dir)
     if output_name is None:
         output_name='dicom_image.nii'
-    # castImageFilter = sitk.CastImageFilter()
-    # castImageFilter.SetOutputPixelType(sitk.sitkUInt8)
-    # image = castImageFilter.Execute(image)
+    
     if OutputPixelType=='Uint16':
         cast_type = sitk.sitkInt16
         
     else:
         cast_type = sitk.sitkInt8
         
-    sitk.WriteImage(sitk.Cast(image,sitk.sitkInt16),os.path.join(output_dir,output_name))
+    sitk.WriteImage(sitk.Cast(image,cast_type),os.path.join(output_dir,output_name))
     return 1
 
 
@@ -57,8 +55,7 @@ def normalize(v):
 def remout(Input_path):
 
     data = DicomRead(Input_path)
-    plt.imshow(data[:,:,5], cmap="gray")
-    plt.show()
+    
     # shift the data to positive intensity value
     data -= np.min(data)
     # Removing the outliers with a probability of occuring less than 5e-3 through histogram computation
@@ -68,8 +65,7 @@ def remout(Input_path):
     data = np.clip(data, 0, Bin)
     print(data.min(), "Min value")
     print(data.max(), "Max Value")
-    plt.imshow(data[:,:,5], cmap="gray")
-    plt.show()
+    
     
     return data
 
@@ -82,12 +78,12 @@ def Dicom_Bias_Correct(image):
     inputImage = sitk.Cast(image, sitk.sitkFloat32)
     corrector = sitk.N4BiasFieldCorrectionImageFilter()
     numberFittingLevels = 4
-    numberOfIteration = [1] 
+    numberOfIteration = [5] 
     corrector.SetMaximumNumberOfIterations(numberOfIteration * numberFittingLevels)
     imageB = corrector.Execute(inputImage, maskImage)
     fi = sitk.GetArrayFromImage(imageB)
-    plt.imshow(fi[:,:,5], cmap="gray")
-    plt.show()
+    #plt.imshow(fi[:,:,5], cmap="gray")
+    #plt.show()
 
     return imageB
 
@@ -121,9 +117,9 @@ def window_image(image, window_center, window_width):
 
 ## Function for removing noise
 def remove_noise(file_path,window_center,window_width,display=False):
-    medical_image = pydicom.read_file(file_path)
-    image = medical_image.pixel_array
     
+    image = DicomRead(file_path)
+    medical_image = sitk.GetImageFromArray(image)
     hu_image = transform_to_hu(medical_image, image)
     brain_image = window_image(hu_image,window_center , window_width)
 
@@ -218,7 +214,9 @@ def add_pad(image, Size,display=False):
     return final_image
 
 def resample(input_path,image,new_spacing):
-    medical_image = medical_image = pydicom.read_file(input_path)
+    medical_image = DicomRead(input_path)
+    medical_image = sitk.GetImageFromArray(medical_image)
+    
     try:
         image_thickness = medical_image.SliceThickness
     except:
@@ -250,26 +248,9 @@ def resample(input_path,image,new_spacing):
 
     
     
-    return image , new_spacing   
+    return resampled_image , new_spacing   
 
 
 
 
-def save_dicom_as_png_slices(Image, path, patient, normalize=False, OutputPixelType='Uint16'):
-    """
-    :param Image:
-    :param path: path to save the slices
-    :param patient: Image name
-    :return: Saves the image slices in png format
-    """
-    if OutputPixelType=='Uint16':
-        OutputPixelType=16
-    else:
-        OutputPixelType=8
-    if not os.path.exists(path):
-        os.makedirs(path)
-    array=sitk.GetArrayFromImage(Image)
-    if normalize:
-        array = normalize(array, N=(2**int(OutputPixelType))-1)
-    for i in range(array.shape[0]):
-        cv2.imwrite(os.path.join(path, patient + '_' + str(i) + '.png'),array[i, ...].astype('int'+str(OutputPixelType)))
+

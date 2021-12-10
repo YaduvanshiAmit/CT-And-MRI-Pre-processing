@@ -34,7 +34,7 @@ def arg_def():
             description='Extraxting the data from dicom_folder and save the results at target folder'
         )
     parser.add_argument('--dicom_folder',type=str,
-            default='Data\\dicom_folder\\pra' , help='input path'
+            default='Data\\dicom_folder\\mri\\98890234\\20030505\\MR\\MR2' , help='input path'
         )
     parser.add_argument('--target_folder',type=str,
             default='Data\\target_folder' , help='input path'
@@ -99,11 +99,11 @@ def arg_def():
 
 def main():
     args = arg_def()
-    print(args.dicom_folder)
+    
     # Get a list of all patients
     Patient_List = [ f for f in os.listdir(args.dicom_folder) if os.path.isfile(os.path.join(args.dicom_folder,f))]
 
-    print(len(Patient_List))
+    
 
     Patient_List.sort()
     random.shuffle(Patient_List)
@@ -111,7 +111,7 @@ def main():
     if args.image_type == 'CT':
         for i, patient in enumerate(Patient_List):
                 Input_path = os.path.join(args.dicom_folder, patient)
-                print(Input_path)
+                
                 if os.path.isfile(Input_path):
                     
                     image_M = remove_noise(Input_path,args.WL,args.WW)
@@ -132,9 +132,7 @@ def main():
                 image_M_R_C_P_S =   sitk.GetImageFromArray(image_M_R_C_P)                                                      
                 NiftiWrite(image_M_R_C_P_S, os.path.join(args.target_folder, 'Pre_Processed'),
                                    output_name=patient + '.nii', OutputPixelType=args.Output_Pixel_Type)
-                if args.output_image_extension == '':
-                        save_dicom_as_png_slices(image_M_R_C_P_S, os.path.join(args.target_folder, 'Pre_Processed_PNG'),
-                                                 patient, OutputPixelType=args.Output_Pixel_Type)
+                
     
 
 
@@ -145,7 +143,7 @@ def main():
                 if os.path.isfile(Input_path):
                     data = remout(Input_path
                     )
-                    
+                    print(data.max())
                     image = sitk.GetImageFromArray(data)
                     image_B = Dicom_Bias_Correct(image)
                     NiftiWrite(image_B, os.path.join(args.target_folder,'Bias_field_corrected'),output_name = patient+'.nii', OutputPixelType=args.Output_Pixel_Type)
@@ -174,7 +172,9 @@ def main():
             plt.show()
             plt.hist(image_d.flatten(),density=True,bins=64,range=(-10,110))
             plt.show()
-
+            NiftiWrite(image_B_S, os.path.join(args.target_folder, 'Pre_Processed_MRI'),
+                                   output_name=patient + '.nii', OutputPixelType=args.Output_Pixel_Type)
+            
     return 0 
     
 if __name__ == '__main__':
