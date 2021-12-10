@@ -1,15 +1,101 @@
+from numpy.lib.type_check import imag
 import pydicom
 from skimage import morphology
 from scipy import ndimage
 import numpy as np
 import matplotlib.pyplot as plt
-
+import SimpleITK as sitk
+import os
+import cv2
+#import nibabel 
 
 ## Read dicom file 
 def DicomRead(Input_path):
-    image1 = pydicom.dcmread(Input_path)
-    image = image1.pixel_array
+    try:
+        print("Reading Dicom file from:", Input_path )
+        image1 = pydicom.dcmread(Input_path)
+        image = image1.pixel_array
+    except:
+        print("Reading Nifti from: ", Input_path )
+        image1 = sitk.ReadImage(Input_path)
+        image = sitk.GetArrayFromImage(image1)
+        
     return image
+
+def NiftiWrite(image,output_dir,output_name=None,OutputPixelType='Uint16'):
+    """
+    Saving an image in either formats Uint8, Uint16
+    :param Input_path: path to dicom folder which contains dicom series
+    :return: Saving an image in either formats Uint8, Uint16
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    if output_name is None:
+        output_name='dicom_image.nii'
+    # castImageFilter = sitk.CastImageFilter()
+    # castImageFilter.SetOutputPixelType(sitk.sitkUInt8)
+    # image = castImageFilter.Execute(image)
+    if OutputPixelType=='Uint16':
+        cast_type = sitk.sitkInt16
+        
+    else:
+        cast_type = sitk.sitkInt8
+        
+    sitk.WriteImage(sitk.Cast(image,sitk.sitkInt16),os.path.join(output_dir,output_name))
+    return 1
+
+
+
+
+def normalize(v):
+    norm = np.linalg.norm(v)
+    if norm == 0:
+       return v
+    return v / norm
+
+
+def remout(Input_path):
+
+    data = DicomRead(Input_path)
+    plt.imshow(data[:,:,5], cmap="gray")
+    plt.show()
+    # shift the data to positive intensity value
+    data -= np.min(data)
+    # Removing the outliers with a probability of occuring less than 5e-3 through histogram computation
+    histo, bins = np.histogram(data.flatten(), 10)
+    histo = normalize(histo)
+    Bin = bins[np.min(np.where(histo < 5e-3))]
+    data = np.clip(data, 0, Bin)
+    print(data.min(), "Min value")
+    print(data.max(), "Max Value")
+    plt.imshow(data[:,:,5], cmap="gray")
+    plt.show()
+    
+    return data
+
+
+def Dicom_Bias_Correct(image):
+    """"
+    For more information please see: https://simpleitk.readthedocs.io/en/master/link_N4BiasFieldCorrection_docs.html
+    """
+    maskImage = sitk.OtsuThreshold(image, 0, 1, 200)
+    inputImage = sitk.Cast(image, sitk.sitkFloat32)
+    corrector = sitk.N4BiasFieldCorrectionImageFilter()
+    numberFittingLevels = 4
+    numberOfIteration = [1] 
+    corrector.SetMaximumNumberOfIterations(numberOfIteration * numberFittingLevels)
+    imageB = corrector.Execute(inputImage, maskImage)
+    fi = sitk.GetArrayFromImage(imageB)
+    plt.imshow(fi[:,:,5], cmap="gray")
+    plt.show()
+
+    return imageB
+
+""""
+for many stabdarization process
+https://github.com/jcreinhold/intensity-normalization
+
+"""
 
 ## Function to transfer pixel to HU
 def transform_to_hu(medical_image, image):
@@ -34,7 +120,7 @@ def window_image(image, window_center, window_width):
 
 
 ## Function for removing noise
-def remove_noise(file_path,window_center,window_width,display=True):
+def remove_noise(file_path,window_center,window_width,display=False):
     medical_image = pydicom.read_file(file_path)
     image = medical_image.pixel_array
     
@@ -87,3 +173,103 @@ def remove_noise(file_path,window_center,window_width,display=True):
     
         plt.show()
     return masked_image    
+
+def crop_image(image, display=False):
+    # Create a mask with the background pixels
+    mask = image == 0
+
+    # Find the brain area
+    coords = np.array(np.nonzero(~mask))
+    top_left = np.min(coords, axis=1)
+    bottom_right = np.max(coords, axis=1)
+    
+    # Remove the background
+    croped_image = image[top_left[0]:bottom_right[0],
+                top_left[1]:bottom_right[1]]
+    if display:
+        plt.figure(figsize=(15, 2.5))
+        plt.subplot(141)
+        plt.imshow(croped_image,cmap=plt.cm.bone)
+        plt.title('Crop Image')
+        plt.axis('off')
+        plt.show()
+    return croped_image    
+
+
+def add_pad(image, Size,display=False):
+    height, width = image.shape
+    new_height = Size[0]
+    new_width = Size[1]
+    final_image = np.zeros((new_height, new_width))
+
+    pad_left = int((new_width - width) / 2)
+    pad_top = int((new_height - height) / 2)
+    
+    # Replace the pixels with the image's pixels
+    final_image[pad_top:pad_top + height, pad_left:pad_left + width] = image
+    
+    if display:
+        plt.figure(figsize=(15, 2.5))
+        plt.subplot(141)
+        plt.imshow(final_image,cmap=plt.cm.bone)
+        plt.title('Pad Image')
+        plt.axis('off')
+        plt.show()
+    return final_image
+
+def resample(input_path,image,new_spacing):
+    medical_image = medical_image = pydicom.read_file(input_path)
+    try:
+        image_thickness = medical_image.SliceThickness
+    except:
+        image_thickness = 1    
+    print(image_thickness)
+    pixel_spacing = medical_image.PixelSpacing
+    print(pixel_spacing)
+    
+    x_pixel = float(pixel_spacing[0])
+    y_pixel = float(pixel_spacing[1])
+    spacing = np.array([image_thickness]+list(pixel_spacing),dtype=np.float32)
+    resize_factor_spacing = spacing / new_spacing
+    new_spacing = spacing/resize_factor_spacing
+    
+    size = np.array([x_pixel, y_pixel, float(image_thickness)])
+    if len(image.shape)==2:
+        image_shape = np.array([image.shape[0], image.shape[1], 1])
+        new_shape = image_shape * size
+        new_shape = np.round(new_shape)
+        resize_factor = new_shape / image_shape
+        resampled_image = ndimage.interpolation.zoom(np.expand_dims(image, axis=2), resize_factor)
+    
+    else:
+        new_shape = image.shape * size
+        new_shape = np.round(new_shape)
+        resize_factor = new_shape / image.shape
+        resampled_image = ndimage.interpolation.zoom(np.expand_dims(image, axis=2), resize_factor)
+         
+
+    
+    
+    return image , new_spacing   
+
+
+
+
+def save_dicom_as_png_slices(Image, path, patient, normalize=False, OutputPixelType='Uint16'):
+    """
+    :param Image:
+    :param path: path to save the slices
+    :param patient: Image name
+    :return: Saves the image slices in png format
+    """
+    if OutputPixelType=='Uint16':
+        OutputPixelType=16
+    else:
+        OutputPixelType=8
+    if not os.path.exists(path):
+        os.makedirs(path)
+    array=sitk.GetArrayFromImage(Image)
+    if normalize:
+        array = normalize(array, N=(2**int(OutputPixelType))-1)
+    for i in range(array.shape[0]):
+        cv2.imwrite(os.path.join(path, patient + '_' + str(i) + '.png'),array[i, ...].astype('int'+str(OutputPixelType)))

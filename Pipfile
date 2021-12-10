@@ -9,6 +9,9 @@ pydicom = "*"
 scikit-image = "*"
 dicom = "*"
 matplotlib = "*"
+simpleitk = "*"
+opencv-python = "*"
+nibabel = "*"
 
 [dev-packages]
 
